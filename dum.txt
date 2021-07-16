@@ -16,7 +16,7 @@ void loop() {
 
    if(Serial1.available())  {
     Serial1.readBytes(indexchar,8);
-      if(indexchar[0] == 'O'&& indexchar[7] == 'S') {
+      if(indexchar[0] == 'O'&& indexchar[6] == 'C') {
 
         while(Serial1.available()) {
            Serial1.readBytes(buff,78);
