@@ -1,0 +1,11 @@
+slprj/
+untitled_ert_rtw/
+Sensor_Complimantary_nano33_ert_rtw/
+SingleMoterControl_ert_rtw/
+Moter_Sensor_Integral_ert_rtw/
+*.bin
+*.elf
+*.slxc
+*.hex
+*.eep
+nano33_motor_ert_rtw/
