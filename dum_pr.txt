@@ -1,3 +1,5 @@
+#define INDEX_LENGTH 78
+
 unsigned char buff[78];
 unsigned char indexchar[8];
 
@@ -16,12 +18,12 @@ void loop() {
 
    if(Serial1.available())  {
     Serial1.readBytes(indexchar,8);
-      if(indexchar[0] == 'O'&& indexchar[7] == 'S') {
+      if(indexchar[0] == 'O'&& indexchar[6] == 'C') {
 
         while(Serial1.available()) {
-           Serial1.readBytes(buff,78);
+           Serial1.readBytes(buff,INDEX_LENGTH);
            
-           for(int i=0; i<78; i++)  {
+           for(int i=0; i<70; i++)  {
             Serial.write(buff[i]);
            }
            Serial.println("");
@@ -30,23 +32,6 @@ void loop() {
            
         }
       }
-   
-
-      if(indexchar[0] == 'O'&& indexchar[7] == 'E') {
-
-        while(Serial1.available()) {
-           Serial1.readBytes(buff,78);
-           
-           for(int i=0; i<78; i++)  {
-            Serial.write(buff[i]);
-           }
-           Serial.println("");
-
-           delay(300);
-           
-        }
-      }
-   }
       
         
       else  {
@@ -55,3 +40,5 @@ void loop() {
         
       }
    }   
+
+}
