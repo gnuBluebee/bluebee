@@ -1,0 +1,58 @@
+/*
+  Scan
+
+  This example scans for BLE peripherals and prints out their advertising details:
+  address, local name, advertised service UUID's.
+
+  The circuit:
+  - Arduino MKR WiFi 1010, Arduino Uno WiFi Rev2 board, Arduino Nano 33 IoT,
+    Arduino Nano 33 BLE, or Arduino Nano 33 BLE Sense board.
+
+  This example code is in the public domain.
+*/
+
+#include <ArduinoBLE.h>
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial);
+
+  // begin initialization
+  if (!BLE.begin()) {
+    Serial.println("starting BLE failed!");
+
+    while (1);
+  }
+
+  // start scanning for peripheral
+  BLE.scan();
+  
+}
+
+void loop() {
+  // check if a peripheral has been discovered
+  if(!BLE.available())
+    BLE.scan();
+    
+  BLEDevice peripheral = BLE.available();
+
+  if (peripheral) {
+
+    // print address
+    Serial.println(peripheral.address());
+
+    /*
+    // print the local name, if present
+    if (peripheral.hasLocalName()) {
+      Serial.print("Local Name: ");
+      Serial.println(peripheral.localName());
+    }
+    */
+
+
+    // print the RSSI
+    Serial.println(peripheral.rssi());
+
+    Serial.println();
+  }
+}
