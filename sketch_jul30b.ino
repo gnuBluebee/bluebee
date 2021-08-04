@@ -227,6 +227,10 @@ float base_roll_target_angle;
 float base_pitch_target_angle;
 float base_yaw_target_angle;
 
+extern float roll_target_angle;
+extern float pitch_target_angle;
+extern float yaw_target_angle;
+
 int initYPR() {
   for (int i = 0; i < 10; i++) {
     IMU.readAcceleration(accel_x, accel_y, accel_z);
@@ -287,7 +291,7 @@ float motorA_speed, motorB_speed, motorC_speed, motorD_speed;
 
 void calcMotorSpeed() {
   motorA_speed = (throttle == 0) ? 0:
-    throttle + yaw_output + roll_output + pitch_output;
+    throttle + yaw_output + roll_output + pitch_output; //뒷 부분에 + ??를 붙여 모터 보정
   motorB_speed = (throttle == 0) ? 0:
     throttle - yaw_output - roll_output + pitch_output;
   motorC_speed = (throttle == 0) ? 0:
@@ -328,15 +332,20 @@ void checkMspPacket() {
         if (mspPacket[CMD] == 150) {
           throttle = mspPacket[THROTTLE];
 
-          //float roll_ku = mspPacket[ROLL];
-          //roll_ku -= 125;
-          //if(roll_ku < 0) roll_ku = 0;
-          //roll_ku /= 25;
-          //roll_kp = roll_ku;
-          //
-          //Serial.print(throttle, 2);
-          //Serial.print("\t");
-          //Serial.println(roll_kp, 2);
+          roll_target_angle = base_roll_target_angle;
+          pitch_target_angle = base_pitch_target_angle;
+          yaw_target_angle = base_yaw_target_angle;
+
+          roll_target_angle += mspPacket[ROLL] - 125;
+          pitch_target_angle += -(mspPacket[PITCH] - 125);
+          yaw_target_angle += -(mspPacket[YAW] - 125);
+
+          //1. smart throttle
+
+          //2. smart roll
+
+          //3. smart pitch
+          
         }
       }
     }
@@ -389,10 +398,85 @@ void dualPID(
 
     desired_rate = stabilize_pterm;
 
-    rate_error = deaired_rate - rate_in;
+    rate_error = desired_rate - rate_in;
 
     rate_pterm = rate_kp * rate_error;
     rate_iterm += rate_ki * rate_error * dt;
 
     output = rate_pterm + rate_iterm + stabilize_iterm;    
    }
+
+float roll_target_angle = 0.0;
+float roll_angle_in;
+float roll_rate_in;
+float roll_stabilize_kp = 1;
+float roll_stabilize_ki = 0;
+float roll_rate_kp = 1;
+float roll_rate_ki = 0;
+float roll_stabilize_iterm;
+float roll_rate_iterm;
+float roll_output;
+
+float pitch_target_angle = 0.0;
+float pitch_angle_in;
+float pitch_rate_in;
+float pitch_stabilize_kp = 1;
+float pitch_stabilize_ki = 0;
+float pitch_rate_kp = 1;
+float pitch_rate_ki = 0;
+float pitch_stabilize_iterm;
+float pitch_rate_iterm;
+float pitch_output;
+
+float yaw_target_angle = 0.0;
+float yaw_angle_in;
+float yaw_rate_in;
+float yaw_stabilize_kp = 1;
+float yaw_stabilize_ki = 0;
+float yaw_rate_kp = 1;
+float yaw_rate_ki = 0;
+float yaw_stabilize_iterm;
+float yaw_rate_iterm;
+float yaw_output;
+
+void calcYPRtoDualPID() {
+
+  roll_angle_in = filtered_angle_y;
+  roll_rate_in = gyro_y;
+  dualPID(roll_target_angle ,
+    roll_angle_in, 
+    roll_rate_in, 
+    roll_stabilize_kp, 
+    roll_stabilize_ki, 
+    roll_rate_kp, 
+    roll_rate_ki, 
+    roll_stabilize_iterm, 
+    roll_rate_iterm,
+    roll_output);
+
+  pitch_angle_in = filtered_angle_x;
+  pitch_rate_in = gyro_x;
+  dualPID(pitch_target_angle, 
+    pitch_angle_in, 
+    pitch_rate_in,
+    pitch_stabilize_kp, 
+    pitch_stabilize_ki, 
+    pitch_rate_kp, 
+    pitch_rate_ki, 
+    pitch_stabilize_iterm, 
+    pitch_rate_iterm, 
+    pitch_output);
+
+  yaw_angle_in = filtered_angle_z;
+  yaw_rate_in = gyro_z;
+  dualPID(yaw_target_angle, 
+    yaw_angle_in, 
+    yaw_rate_in, 
+    yaw_stabilize_kp, 
+    yaw_stabilize_ki, 
+    yaw_rate_kp, 
+    yaw_rate_ki, 
+    yaw_stabilize_iterm, 
+    yaw_rate_iterm, 
+    yaw_output);
+}
