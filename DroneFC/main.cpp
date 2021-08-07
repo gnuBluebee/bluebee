@@ -1,17 +1,7 @@
-#include <Arduino_LSM9DS1.h>
+#include <BluebeeFC.h>
 
-int calibAccelGyro();
-int initDT();
-int calcDT();
-int calcFilteredYPR();
-int initYPR();
-void SendDataToProcessing();
-void calcYPRtoDualPID();
-void calcMotorSpeed();
-void checkMspPacket();
-void updateMotorSpeed();
-void printMspPacket();
-
+#define THROTTLE_MAX 255
+#define THROTTLE_MIN 0
 
 // 수신기 데이터값
 uint8_t mspPacket[11];
@@ -75,14 +65,16 @@ float yaw_rate_iterm;
 float yaw_output;
 
 float throttle = 0.0;
-float motorA_speed, motorB_speed, motorC_speed, motorD_speed;
-#define THROTTLE_MAX 255
-#define THROTTLE_MIN 0
+float motorA_speed;
+float motorB_speed; 
+float motorC_speed;
+float motorD_speed;
 
-const int motorA_pin = 8;
-const int motorB_pin = 9;
-const int motorC_pin = 7;
-const int motorD_pin = 12;
+// MotorSpeed.cpp 에서 extern
+int motorA_pin = 8;
+int motorB_pin = 9;
+int motorC_pin = 7;
+int motorD_pin = 12;
 
 void setup() {
   Serial.begin(115200);
@@ -106,39 +98,31 @@ void loop() {
   calcYPRtoDualPID();
   calcMotorSpeed();
   checkMspPacket();
-  updateMotorSpeed();
-  SendDataToProcessing();
+
+  updateMotorSpeed(
+  &motorA_speed,
+  &motorB_speed,
+  &motorC_speed,
+  &motorD_speed
+  );
+
+  SendDataToProcessing( 
+  &dt,
+  &filtered_angle_x,
+  &filtered_angle_y,
+  &filtered_angle_z,
+  &roll_target_angle,
+  &pitch_target_angle,
+  &yaw_target_angle,
+  &throttle,
+  &motorA_speed,
+  &motorB_speed,
+  &motorC_speed,
+  &motorD_speed
+);
 
 }
 
-void SendDataToProcessing() {
-  Serial.print("DEL: ");
-  Serial.print(dt, DEC);
-  Serial.print("#RPY: ");
-  Serial.print(filtered_angle_y, 2);
-  Serial.print(",");
-  Serial.print(filtered_angle_x, 2);
-  Serial.print(",");
-  Serial.print(filtered_angle_z, 2);
-
-  Serial.print("#TARGET: ");
-  Serial.print(roll_target_angle, 2);
-  Serial.print(",");
-  Serial.print(pitch_target_angle, 2);
-  Serial.print(",");
-  Serial.print(yaw_target_angle, 2);
-  Serial.print(",");
-  Serial.print(throttle, 2);
-
-  Serial.print("#A");
-  Serial.print(motorA_speed, 2);
-  Serial.print("#B");
-  Serial.print(motorB_speed, 2);
-  Serial.print("#C");
-  Serial.print(motorC_speed, 2);
-  Serial.print("#D");
-  Serial.println(motorD_speed, 2);
-}
 
 int calibAccelGyro() {
   float sumAcX = 0, sumAcY = 0, sumAcZ = 0;
@@ -316,91 +300,49 @@ void printMspPacket() {
 
 
 
-void initMotorSpeed() {
-  analogWrite(motorA_pin, THROTTLE_MIN);
-  analogWrite(motorB_pin, THROTTLE_MIN);
-  analogWrite(motorC_pin, THROTTLE_MIN);
-  analogWrite(motorD_pin, THROTTLE_MIN);
-}
-
-void updateMotorSpeed() {
-  analogWrite(motorA_pin, motorA_speed);
-  analogWrite(motorB_pin, motorB_speed);
-  analogWrite(motorC_pin, motorC_speed);
-  analogWrite(motorD_pin, motorD_speed);
-}
-
-void dualPID(
-   float target_angle,
-   float angle_in,
-   float rate_in, 
-   float stabilize_kp, 
-   float stabilize_ki, 
-   float rate_kp, 
-   float rate_ki, 
-   float& stabilize_iterm, 
-   float& rate_iterm, 
-   float& output
-   ) {
-    float angle_error;
-    float desired_rate;
-    float rate_error;
-    float stabilize_pterm, rate_pterm;
-
-    angle_error = target_angle - angle_in;
-
-    stabilize_pterm = stabilize_kp * angle_error;
-    stabilize_iterm += stabilize_ki * angle_error * dt;
-
-    desired_rate = stabilize_pterm;
-
-    rate_error = desired_rate - rate_in;
-
-    rate_pterm = rate_kp * rate_error;
-    rate_iterm += rate_ki * rate_error * dt;
-
-    output = rate_pterm + rate_iterm + stabilize_iterm;    
-   }
 
 
 void calcYPRtoDualPID() {
 
   roll_angle_in = filtered_angle_y;
   roll_rate_in = gyro_y;
-  dualPID(roll_target_angle ,
-    roll_angle_in, 
-    roll_rate_in, 
-    roll_stabilize_kp, 
-    roll_stabilize_ki, 
-    roll_rate_kp, 
-    roll_rate_ki, 
-    roll_stabilize_iterm, 
-    roll_rate_iterm,
-    roll_output);
+  dualPID(&roll_target_angle ,
+    &roll_angle_in, 
+    &roll_rate_in, 
+    &roll_stabilize_kp, 
+    &roll_stabilize_ki, 
+    &roll_rate_kp, 
+    &roll_rate_ki, 
+    &roll_stabilize_iterm, 
+    &roll_rate_iterm,
+    &roll_output,
+    &dt);
 
   pitch_angle_in = filtered_angle_x;
   pitch_rate_in = gyro_x;
-  dualPID(pitch_target_angle, 
-    pitch_angle_in, 
-    pitch_rate_in,
-    pitch_stabilize_kp, 
-    pitch_stabilize_ki, 
-    pitch_rate_kp, 
-    pitch_rate_ki, 
-    pitch_stabilize_iterm, 
-    pitch_rate_iterm, 
-    pitch_output);
+  dualPID(&pitch_target_angle, 
+    &pitch_angle_in,  
+    &pitch_rate_in,
+    &pitch_stabilize_kp, 
+    &pitch_stabilize_ki, 
+    &pitch_rate_kp, 
+    &pitch_rate_ki, 
+    &pitch_stabilize_iterm, 
+    &pitch_rate_iterm, 
+    &pitch_output,
+    &dt);
 
   yaw_angle_in = filtered_angle_z;
   yaw_rate_in = gyro_z;
-  dualPID(yaw_target_angle, 
-    yaw_angle_in, 
-    yaw_rate_in, 
-    yaw_stabilize_kp, 
-    yaw_stabilize_ki, 
-    yaw_rate_kp, 
-    yaw_rate_ki, 
-    yaw_stabilize_iterm, 
-    yaw_rate_iterm, 
-    yaw_output);
+  dualPID(&yaw_target_angle, 
+    &yaw_angle_in, 
+    &yaw_rate_in, 
+    &yaw_stabilize_kp, 
+    &yaw_stabilize_ki, 
+    &yaw_rate_kp, 
+    &yaw_rate_ki, 
+    &yaw_stabilize_iterm, 
+    &yaw_rate_iterm, 
+    &yaw_output,
+    &dt);
 }
