@@ -15,7 +15,7 @@ float accel_x, accel_y, accel_z;
 float gyro_x, gyro_y, gyro_z;
 float mag_x, mag_y, mag_z;
 
-// 초기각도 값
+// 초기각도 값 
 float base_roll_target_angle = 0;
 float base_pitch_target_angle = 0;
 float base_yaw_target_angle = 0;
@@ -34,10 +34,10 @@ float filtered_angle_x, filtered_angle_y, filtered_angle_z;
 float roll_target_angle = 0.0;
 float roll_angle_in;
 float roll_rate_in;
-float roll_stabilize_kp = 1;
+float roll_stabilize_kp = 0.25;
 float roll_stabilize_ki = 0;
-float roll_rate_kp = 1;
-float roll_rate_ki = 0;
+float roll_rate_kp = 1.7;
+float roll_rate_ki = 0.01;
 float roll_stabilize_iterm;
 float roll_rate_iterm;
 float roll_output;
@@ -234,13 +234,13 @@ int initYPR() {
 
 void calcMotorSpeed() {
   motorA_speed = (throttle == 0) ? 0:
-    throttle + yaw_output + roll_output + pitch_output; //뒷 부분에 + ??를 붙여 모터 보정
+    throttle + yaw_output - roll_output - pitch_output; //뒷 부분에 + ??를 붙여 모터 보정
   motorB_speed = (throttle == 0) ? 0:
-    throttle - yaw_output - roll_output + pitch_output;
-  motorC_speed = (throttle == 0) ? 0:
-    throttle + yaw_output - roll_output - pitch_output;
-  motorD_speed = (throttle == 0) ? 0:
     throttle - yaw_output + roll_output - pitch_output;
+  motorC_speed = (throttle == 0) ? 0:
+    throttle + yaw_output + roll_output + pitch_output;
+  motorD_speed = (throttle == 0) ? 0:
+    throttle - yaw_output - roll_output + pitch_output;
   //float throttle = 0;
 
   if (motorA_speed < 0) motorA_speed = 0;
@@ -274,7 +274,7 @@ void checkMspPacket() {
           pitch_target_angle = base_pitch_target_angle;
           yaw_target_angle = base_yaw_target_angle;
 
-          roll_target_angle += (mspPacket[5] - 125);
+          roll_target_angle -= (mspPacket[5] - 125);
           pitch_target_angle += (mspPacket[6] - 125);
           yaw_target_angle += (mspPacket[7] - 125);
           
@@ -298,14 +298,11 @@ void printMspPacket() {
 
 }
 
-
-
-
-
 void calcYPRtoDualPID() {
 
-  roll_angle_in = filtered_angle_y;
-  roll_rate_in = gyro_y;
+  roll_angle_in = filtered_angle_x;
+  roll_rate_in = -gyro_x;
+
   dualPID(&roll_target_angle ,
     &roll_angle_in, 
     &roll_rate_in, 
@@ -318,8 +315,8 @@ void calcYPRtoDualPID() {
     &roll_output,
     &dt);
 
-  pitch_angle_in = filtered_angle_x;
-  pitch_rate_in = gyro_x;
+  pitch_angle_in = filtered_angle_y;
+  pitch_rate_in = -gyro_y;
   dualPID(&pitch_target_angle, 
     &pitch_angle_in,  
     &pitch_rate_in,

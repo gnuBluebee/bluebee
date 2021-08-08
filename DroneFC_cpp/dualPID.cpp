@@ -10,7 +10,9 @@ void dualPID(
    float *rate_iterm, 
    float *output,
    float *dt
-   ) {
+   ) 
+   {
+
     float angle_error;
     float desired_rate;
     float rate_error;
