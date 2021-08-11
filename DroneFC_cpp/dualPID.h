@@ -1,11 +1,4 @@
-void dualPID(float *target_angle,
-   float *angle_in,
-   float *rate_in, 
-   float *stabilize_kp, 
-   float *stabilize_ki, 
-   float *rate_kp, 
-   float *rate_ki, 
-   float *stabilize_iterm, 
-   float *rate_iterm, 
-   float *output,
-   float *dt);
+#pragma once
+
+#include "BluebeeDataType.h"
+void dualPID(ControlValue *cv, float *dt);

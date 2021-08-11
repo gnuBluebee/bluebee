@@ -3,34 +3,37 @@
 #define THROTTLE_MAX 255
 #define THROTTLE_MIN 0
 
+
+
 // 수신기 데이터값
 uint8_t mspPacket[11];
 
-// 센서 초기값
-float baseAcX, baseAcY, baseAcZ;
-float baseGyX, baseGyY, baseGyZ;
-
-// 자이로 센서에서 수신 받은 데이터
-float accel_x, accel_y, accel_z;
-float gyro_x, gyro_y, gyro_z;
-float mag_x, mag_y, mag_z;
-
-// 초기각도 값 
-float base_roll_target_angle = 0;
-float base_pitch_target_angle = 0;
-float base_yaw_target_angle = 0;
+// 센서 데이터 및 보정 데이터 구조체
+SensorData sdata = {0.0, };
+// 비행 데이터 구조체
+FlightData fdata = {0.0, };
+//제어 관련 데이터 구조체
+ControlValue cv_roll = {0.0, };
+ControlValue cv_pitch = {0.0, };
+ControlValue cv_yaw = {0.0, };
 
 // dt
 unsigned long t_now;
 unsigned long t_prev;
 float dt = 0.0;
 
-// 오일러각
-float accel_angle_x, accel_angle_y, accel_angle_z;
 // 상보필터로 구한 각 = 최종각
 float filtered_angle_x, filtered_angle_y, filtered_angle_z;
 
+// 초기각도 값 
+float base_roll_target_angle = 0;
+float base_pitch_target_angle = 0;
+float base_yaw_target_angle = 0;
+
+
+
 // 제어값
+/*
 float roll_target_angle = 0.0;
 float roll_angle_in;
 float roll_rate_in;
@@ -63,6 +66,7 @@ float yaw_rate_ki = 0;
 float yaw_stabilize_iterm;
 float yaw_rate_iterm;
 float yaw_output;
+*/
 
 float throttle = 0.0;
 float motorA_speed;
@@ -77,6 +81,18 @@ int motorC_pin = 7;
 int motorD_pin = 12;
 
 void setup() {
+
+  // 제어기 게인값 설정
+  cv_roll.stabilize_kp = 3;
+  cv_roll.rate_kp = 1;
+  cv_roll.rate_ki = 0;
+  cv_pitch.stabilize_kp = 3;
+  cv_pitch.rate_kp = 1;
+  cv_pitch.rate_ki = 0;
+  cv_yaw.stabilize_kp = 0;
+  cv_yaw.rate_kp = 1;
+  cv_yaw.rate_ki = 0;
+
   Serial.begin(115200);
   Serial1.begin(9600);
   if (!IMU.begin()) {
@@ -89,12 +105,15 @@ void setup() {
 }
 
 void loop() {
-  IMU.readAcceleration(accel_x, accel_y, accel_z);
-  IMU.readGyroscope(gyro_x, gyro_y, gyro_z);
-  IMU.readMagneticField(mag_x, mag_y, mag_z);
+  IMU.readAcceleration(sdata.accel_x, sdata.accel_y, sdata.accel_z);
+  IMU.readGyroscope(sdata.gyro_x, sdata.gyro_y, sdata.gyro_z);
+
   calcDT();
   calcFilteredYPR();
 
+  cv_roll.stabilize_kp = 3;
+  cv_roll.rate_kp = 1;
+  cv_roll.rate_ki = 0;
   calcYPRtoDualPID();
   calcMotorSpeed();
   checkMspPacket();
@@ -106,20 +125,21 @@ void loop() {
   &motorD_speed
   );
 
-  SendDataToProcessing( 
-  &dt,
-  &filtered_angle_x,
-  &filtered_angle_y,
-  &filtered_angle_z,
-  &roll_target_angle,
-  &pitch_target_angle,
-  &yaw_target_angle,
-  &throttle,
-  &motorA_speed,
-  &motorB_speed,
-  &motorC_speed,
-  &motorD_speed
-);
+  // FlightData 구조체 데이터 초기화
+  fdata.dt = dt;
+  fdata.filtered_angle_x = filtered_angle_x;
+  fdata.filtered_angle_y = filtered_angle_y;
+  fdata.filtered_angle_z = filtered_angle_z;
+  fdata.roll_target_angle = cv_roll.target;
+  fdata.pitch_target_angle =cv_pitch.target;
+  fdata.yaw_target_angle = cv_yaw.target;
+  fdata.throttle = throttle;
+  fdata.motorA_speed = motorA_speed;
+  fdata.motorB_speed =motorB_speed;
+  fdata.motorC_speed = motorC_speed;
+  fdata.motorD_speed = motorD_speed;
+
+  SendDataToProcessing(&fdata);
 
 }
 
@@ -128,21 +148,21 @@ int calibAccelGyro() {
   float sumAcX = 0, sumAcY = 0, sumAcZ = 0;
   float sumGyX = 0, sumGyY = 0, sumGyZ = 0;
 
-  for (int i = 0; i < 100; i++) {
-    IMU.readAcceleration(accel_x, accel_y, accel_z);
-    IMU.readGyroscope(gyro_x, gyro_y, gyro_z);
-    sumAcX += accel_x, sumAcY += accel_y, sumAcZ += accel_z;
-    sumGyX += gyro_x, sumGyY += gyro_y, sumGyZ += gyro_z;
-    delay(10);
+  for (int i = 0; i < 2000; i++) {
+    IMU.readAcceleration(sdata.accel_x, sdata.accel_y, sdata.accel_z);
+    IMU.readGyroscope(sdata.gyro_x, sdata.gyro_y, sdata.gyro_z);
+    
+    sumAcX += sdata.accel_x, sumAcY += sdata.accel_y, sumAcZ += sdata.accel_z;
+    sumGyX += sdata.gyro_x, sumGyY += sdata.gyro_y, sumGyZ += sdata.gyro_z;
+    delay(1);
   }
 
-  baseAcX = sumAcX / 100;
-  baseAcY = sumAcY / 100;
-  baseAcZ = sumAcZ / 100;
-
-  baseGyX = sumGyX / 100;
-  baseGyY = sumGyY / 100;
-  baseGyZ = sumGyZ / 100;
+  sdata.baseAcX = sumAcX / 2000;
+  sdata.baseAcY = sumAcY / 2000;
+  sdata.baseAcZ = sumAcZ / 2000;
+  sdata.baseGyX = sumGyX / 2000;
+  sdata.baseGyY = sumGyY / 2000;
+  sdata.baseGyZ = sumGyZ / 2000;
 
   return 0;
 }
@@ -165,13 +185,14 @@ int calcDT() {
 int calcFilteredYPR() {
   
   // 가속도 YPR 값 구하기
+  float accel_angle_x = 0, accel_angle_y = 0, accel_angle_z = 0;
   float _accel_x, _accel_y, _accel_z;
   float _accel_xz, _accel_yz;
   const float RADIANS_TO_DEGREES = 180 / 3.14159;
 
-  _accel_x = accel_x - baseAcX;
-  _accel_y = accel_y - baseAcY;
-  _accel_z = accel_z + (1 - baseAcZ);
+  _accel_x = sdata.accel_x - sdata.baseAcX;
+  _accel_y = sdata.accel_y - sdata.baseAcY;
+  _accel_z = sdata.accel_z + (1 - sdata.baseAcZ);
 
   _accel_yz = sqrt(pow(_accel_y, 2) + pow(_accel_z, 2));
   accel_angle_y = atan(-_accel_x / _accel_yz) * RADIANS_TO_DEGREES;
@@ -182,17 +203,17 @@ int calcFilteredYPR() {
   accel_angle_z = 0;
   
   // 자이로 센서 보정값 적용
-  gyro_x = gyro_x - baseGyX;
-  gyro_y = gyro_y - baseGyY;
-  gyro_z = gyro_z - baseGyZ;
+  sdata.gyro_x = sdata.gyro_x - sdata.baseGyX;
+  sdata.gyro_y = sdata.gyro_y - sdata.baseGyY;
+  sdata.gyro_z =sdata. gyro_z - sdata.baseGyZ;
 
   // 상보필터
   const float ALPHA = 0.96;
   float tmp_angle_x, tmp_angle_y, tmp_angle_z;
 
-  tmp_angle_x = filtered_angle_x + gyro_x * dt;
-  tmp_angle_y = filtered_angle_y + gyro_y * dt;
-  tmp_angle_z = filtered_angle_z + gyro_z * dt;
+  tmp_angle_x = filtered_angle_x + sdata.gyro_x * dt;
+  tmp_angle_y = filtered_angle_y + sdata.gyro_y * dt;
+  tmp_angle_z = filtered_angle_z + sdata.gyro_z * dt;
 
   filtered_angle_x =
     ALPHA * tmp_angle_x + (1.0 - ALPHA) * accel_angle_x;
@@ -205,10 +226,12 @@ int calcFilteredYPR() {
 
 
 int initYPR() {
+
+
   for (int i = 0; i < 10; i++) {
-    IMU.readAcceleration(accel_x, accel_y, accel_z);
-    IMU.readGyroscope(gyro_x, gyro_y, gyro_z);
-    IMU.readMagneticField(mag_x, mag_y, mag_z);
+    IMU.readAcceleration(sdata.accel_x, sdata.accel_y, sdata.accel_z);
+    IMU.readGyroscope(sdata.gyro_x, sdata.gyro_y, sdata.gyro_z);
+
     calcDT();
     calcFilteredYPR();
 
@@ -224,9 +247,9 @@ int initYPR() {
   base_pitch_target_angle /= 10;
   base_yaw_target_angle /= 10;
 
-  roll_target_angle = base_roll_target_angle;
-  pitch_target_angle = base_pitch_target_angle;
-  yaw_target_angle = base_yaw_target_angle;
+  cv_roll.target = base_roll_target_angle;
+  cv_pitch.target = base_pitch_target_angle;
+  cv_yaw.target = base_yaw_target_angle;
 
   return 0;
 }
@@ -234,13 +257,13 @@ int initYPR() {
 
 void calcMotorSpeed() {
   motorA_speed = (throttle == 0) ? 0:
-    throttle + yaw_output - roll_output - pitch_output; //뒷 부분에 + ??를 붙여 모터 보정
+    throttle + cv_yaw.output - cv_roll.output - cv_pitch.output; //뒷 부분에 + ??를 붙여 모터 보정
   motorB_speed = (throttle == 0) ? 0:
-    throttle - yaw_output + roll_output - pitch_output;
+    throttle - cv_yaw.output + cv_roll.output - cv_pitch.output;
   motorC_speed = (throttle == 0) ? 0:
-    throttle + yaw_output + roll_output + pitch_output;
+    throttle + cv_yaw.output + cv_roll.output + cv_pitch.output;
   motorD_speed = (throttle == 0) ? 0:
-    throttle - yaw_output - roll_output + pitch_output;
+    throttle - cv_yaw.output - cv_roll.output + cv_pitch.output;
   //float throttle = 0;
 
   if (motorA_speed < 0) motorA_speed = 0;
@@ -270,13 +293,13 @@ void checkMspPacket() {
         if (mspPacket[4] == 150) {
           throttle = mspPacket[8];
 
-          roll_target_angle = base_roll_target_angle;
-          pitch_target_angle = base_pitch_target_angle;
-          yaw_target_angle = base_yaw_target_angle;
+          cv_roll.target = base_roll_target_angle;
+          cv_pitch.target = base_pitch_target_angle;
+          cv_yaw.target = base_yaw_target_angle;
 
-          roll_target_angle -= (float)(mspPacket[5] - 125) * 20/125;
-          pitch_target_angle += (float)(mspPacket[6] - 125) * 20/125;
-          yaw_target_angle -= (float)(mspPacket[7] - 125) * 20/125;
+          cv_roll.target -= (float)(mspPacket[5] - 125) * 20/125;
+          cv_pitch.target += (float)(mspPacket[6] - 125) * 20/125;
+          cv_yaw.target -= (float)(mspPacket[7] - 125) * 20/125;
           
         }
       }
@@ -300,46 +323,18 @@ void printMspPacket() {
 
 void calcYPRtoDualPID() {
 
-  roll_angle_in = filtered_angle_x;
-  roll_rate_in = -gyro_x;
+  cv_roll.angle_in = filtered_angle_x;
+  cv_roll.rate_in = -sdata.gyro_x;
 
-  dualPID(&roll_target_angle ,
-    &roll_angle_in, 
-    &roll_rate_in, 
-    &roll_stabilize_kp, 
-    &roll_stabilize_ki, 
-    &roll_rate_kp, 
-    &roll_rate_ki, 
-    &roll_stabilize_iterm, 
-    &roll_rate_iterm,
-    &roll_output,
-    &dt);
+  dualPID(&cv_roll, &dt);
 
-  pitch_angle_in = filtered_angle_y;
-  pitch_rate_in = -gyro_y;
-  dualPID(&pitch_target_angle, 
-    &pitch_angle_in,  
-    &pitch_rate_in,
-    &pitch_stabilize_kp, 
-    &pitch_stabilize_ki, 
-    &pitch_rate_kp, 
-    &pitch_rate_ki, 
-    &pitch_stabilize_iterm, 
-    &pitch_rate_iterm, 
-    &pitch_output,
-    &dt);
+  cv_pitch.angle_in = filtered_angle_y;
+  cv_pitch.rate_in = -sdata.gyro_y;
 
-  yaw_angle_in = filtered_angle_z;
-  yaw_rate_in = gyro_z;
-  dualPID(&yaw_target_angle, 
-    &yaw_angle_in, 
-    &yaw_rate_in, 
-    &yaw_stabilize_kp, 
-    &yaw_stabilize_ki, 
-    &yaw_rate_kp, 
-    &yaw_rate_ki, 
-    &yaw_stabilize_iterm, 
-    &yaw_rate_iterm, 
-    &yaw_output,
-    &dt);
+  dualPID(&cv_pitch, &dt);
+
+  cv_yaw.angle_in = filtered_angle_z;
+  cv_yaw.rate_in = sdata.gyro_z;
+
+  dualPID(&cv_yaw, &dt);
 }
