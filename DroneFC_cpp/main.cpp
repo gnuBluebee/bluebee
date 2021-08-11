@@ -34,10 +34,10 @@ float filtered_angle_x, filtered_angle_y, filtered_angle_z;
 float roll_target_angle = 0.0;
 float roll_angle_in;
 float roll_rate_in;
-float roll_stabilize_kp = 0.25;
+float roll_stabilize_kp = 3;
 float roll_stabilize_ki = 0;
-float roll_rate_kp = 1.7;
-float roll_rate_ki = 0.01;
+float roll_rate_kp = 1;
+float roll_rate_ki = 0;
 float roll_stabilize_iterm;
 float roll_rate_iterm;
 float roll_output;
@@ -45,7 +45,7 @@ float roll_output;
 float pitch_target_angle = 0.0;
 float pitch_angle_in;
 float pitch_rate_in;
-float pitch_stabilize_kp = 1;
+float pitch_stabilize_kp = 3;
 float pitch_stabilize_ki = 0;
 float pitch_rate_kp = 1;
 float pitch_rate_ki = 0;
@@ -56,7 +56,7 @@ float pitch_output;
 float yaw_target_angle = 0.0;
 float yaw_angle_in;
 float yaw_rate_in;
-float yaw_stabilize_kp = 1;
+float yaw_stabilize_kp = 0;
 float yaw_stabilize_ki = 0;
 float yaw_rate_kp = 1;
 float yaw_rate_ki = 0;
@@ -274,9 +274,9 @@ void checkMspPacket() {
           pitch_target_angle = base_pitch_target_angle;
           yaw_target_angle = base_yaw_target_angle;
 
-          roll_target_angle -= (mspPacket[5] - 125);
-          pitch_target_angle += (mspPacket[6] - 125);
-          yaw_target_angle += (mspPacket[7] - 125);
+          roll_target_angle -= (float)(mspPacket[5] - 125) * 20/125;
+          pitch_target_angle += (float)(mspPacket[6] - 125) * 20/125;
+          yaw_target_angle -= (float)(mspPacket[7] - 125) * 20/125;
           
         }
       }
