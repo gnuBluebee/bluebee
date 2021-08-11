@@ -1,11 +1,11 @@
-#ifndef __BLUEBEEFC_H__
-#define __BLUEBEEFC_H__
+#pragma once
 
 #include <Arduino.h>
 #include <Arduino_LSM9DS1.h>
 #include "dualPID.h"
 #include "SendDataToProcessing.h"
 #include "MotorSpeed.h"
+#include "BluebeeDataType.h"
 
 int calibAccelGyro();
 int initDT();
@@ -17,5 +17,3 @@ void calcYPRtoDualPID();
 void calcMotorSpeed();
 void checkMspPacket();
 void printMspPacket();
-
-#endif
