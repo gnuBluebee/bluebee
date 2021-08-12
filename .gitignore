@@ -1,0 +1,6 @@
+Moter_Sensor_Integral_ert_rtw/
+*.bin
+*.elf
+*.slxc
+ControlSystem_ert_rtw/
+ControlSystem_Simlulation_ert_rtw/
