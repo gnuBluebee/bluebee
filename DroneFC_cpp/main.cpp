@@ -2,8 +2,7 @@
 
 #define THROTTLE_MAX 255
 #define THROTTLE_MIN 0
-
-
+#define MAX_CONTROL_ANGLE 10
 
 // 수신기 데이터값
 uint8_t mspPacket[11];
@@ -30,44 +29,6 @@ float base_roll_target_angle = 0;
 float base_pitch_target_angle = 0;
 float base_yaw_target_angle = 0;
 
-
-
-// 제어값
-/*
-float roll_target_angle = 0.0;
-float roll_angle_in;
-float roll_rate_in;
-float roll_stabilize_kp = 3;
-float roll_stabilize_ki = 0;
-float roll_rate_kp = 1;
-float roll_rate_ki = 0;
-float roll_stabilize_iterm;
-float roll_rate_iterm;
-float roll_output;
-
-float pitch_target_angle = 0.0;
-float pitch_angle_in;
-float pitch_rate_in;
-float pitch_stabilize_kp = 3;
-float pitch_stabilize_ki = 0;
-float pitch_rate_kp = 1;
-float pitch_rate_ki = 0;
-float pitch_stabilize_iterm;
-float pitch_rate_iterm;
-float pitch_output;
-
-float yaw_target_angle = 0.0;
-float yaw_angle_in;
-float yaw_rate_in;
-float yaw_stabilize_kp = 0;
-float yaw_stabilize_ki = 0;
-float yaw_rate_kp = 1;
-float yaw_rate_ki = 0;
-float yaw_stabilize_iterm;
-float yaw_rate_iterm;
-float yaw_output;
-*/
-
 float throttle = 0.0;
 float motorA_speed;
 float motorB_speed; 
@@ -83,15 +44,15 @@ int motorD_pin = 12;
 void setup() {
 
   // 제어기 게인값 설정
-  cv_roll.stabilize_kp = 3;
-  cv_roll.rate_kp = 1;
-  cv_roll.rate_ki = 0;
-  cv_pitch.stabilize_kp = 3;
-  cv_pitch.rate_kp = 1;
-  cv_pitch.rate_ki = 0;
+  cv_roll.stabilize_kp = 1;
+  cv_roll.rate_kp = 0.7;
+  cv_roll.rate_ki = 0.0;
+  cv_pitch.stabilize_kp = 1;
+  cv_pitch.rate_kp = 0.7;
+  cv_pitch.rate_ki = 0.0;
   cv_yaw.stabilize_kp = 0;
-  cv_yaw.rate_kp = 1;
-  cv_yaw.rate_ki = 0;
+  cv_yaw.rate_kp = 0.7;
+  cv_yaw.rate_ki = 0.0;
 
   Serial.begin(115200);
   Serial1.begin(9600);
@@ -140,7 +101,6 @@ void loop() {
   fdata.motorD_speed = motorD_speed;
 
   SendDataToProcessing(&fdata);
-
 }
 
 
@@ -297,9 +257,9 @@ void checkMspPacket() {
           cv_pitch.target = base_pitch_target_angle;
           cv_yaw.target = base_yaw_target_angle;
 
-          cv_roll.target -= (float)(mspPacket[5] - 125) * 20/125;
-          cv_pitch.target += (float)(mspPacket[6] - 125) * 20/125;
-          cv_yaw.target -= (float)(mspPacket[7] - 125) * 20/125;
+          cv_roll.target -= (float)(mspPacket[5] - 125) * MAX_CONTROL_ANGLE/125;
+          cv_pitch.target += (float)(mspPacket[6] - 125) * MAX_CONTROL_ANGLE/125;
+          cv_yaw.target -= (float)(mspPacket[7] - 125) * MAX_CONTROL_ANGLE/125;
           
         }
       }
