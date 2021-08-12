@@ -6,6 +6,7 @@
 #include "SendDataToProcessing.h"
 #include "MotorSpeed.h"
 #include "BluebeeDataType.h"
+#include "BeaconDetector.h"
 
 int calibAccelGyro();
 int initDT();

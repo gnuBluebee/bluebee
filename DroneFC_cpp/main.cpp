@@ -41,6 +41,8 @@ int motorB_pin = 9;
 int motorC_pin = 7;
 int motorD_pin = 12;
 
+int isStopBeaconDetected = 0;
+
 void setup() {
 
   // 제어기 게인값 설정
@@ -78,6 +80,9 @@ void loop() {
   calcYPRtoDualPID();
   calcMotorSpeed();
   checkMspPacket();
+  
+  isStopBeaconDetected = BeaconDetector();
+  if(isStopBeaconDetected)  Serial.println("STOP");
 
   updateMotorSpeed(
   &motorA_speed,
