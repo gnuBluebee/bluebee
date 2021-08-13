@@ -49,12 +49,15 @@ void setup() {
   cv_roll.stabilize_kp = 1;
   cv_roll.rate_kp = 0.7;
   cv_roll.rate_ki = 0.0;
+  cv_roll.rate_kd = 0.0;
   cv_pitch.stabilize_kp = 1;
   cv_pitch.rate_kp = 0.7;
   cv_pitch.rate_ki = 0.0;
+  cv_pitch.rate_kd = 0.0;
   cv_yaw.stabilize_kp = 0;
   cv_yaw.rate_kp = 0.7;
   cv_yaw.rate_ki = 0.0;
+  cv_yaw.rate_kd = 0.0;
 
   Serial.begin(115200);
   Serial1.begin(9600);
@@ -67,16 +70,13 @@ void setup() {
   initYPR();
 }
 
+
 void loop() {
   IMU.readAcceleration(sdata.accel_x, sdata.accel_y, sdata.accel_z);
   IMU.readGyroscope(sdata.gyro_x, sdata.gyro_y, sdata.gyro_z);
 
   calcDT();
   calcFilteredYPR();
-
-  cv_roll.stabilize_kp = 3;
-  cv_roll.rate_kp = 1;
-  cv_roll.rate_ki = 0;
   calcYPRtoDualPID();
   calcMotorSpeed();
   checkMspPacket();
