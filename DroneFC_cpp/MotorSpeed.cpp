@@ -4,11 +4,11 @@
 #define THROTTLE_MIN 0
 #endif
 
-// main.c;
-extern int motorA_pin;
-extern int motorB_pin;
-extern int motorC_pin;
-extern int motorD_pin;
+// 아두이노 모터제어용 핀번호 선언
+static int motorA_pin = 8;
+static int motorB_pin = 9;
+static int motorC_pin = 7;
+static int motorD_pin = 12;
 
 void initMotorSpeed() {
   analogWrite(motorA_pin, THROTTLE_MIN);
