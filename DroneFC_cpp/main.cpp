@@ -2,7 +2,7 @@
 
 #define THROTTLE_MAX 255
 #define THROTTLE_MIN 0
-#define MAX_CONTROL_ANGLE 10
+#define MAX_CONTROL_ANGLE 5
 
 // 수신기 데이터값
 uint8_t mspPacket[11];
@@ -16,13 +16,14 @@ ControlValue cv_roll = {0.0, };
 ControlValue cv_pitch = {0.0, };
 ControlValue cv_yaw = {0.0, };
 
+// 현재 드론 각도
+PostureAngle angle = {0.0, };
+
 // dt
 unsigned long t_now;
 unsigned long t_prev;
 float dt = 0.0;
 
-// 상보필터로 구한 각 = 최종각
-float filtered_angle_x, filtered_angle_y, filtered_angle_z;
 
 // 초기각도 값 
 float base_roll_target_angle = 0;
@@ -35,13 +36,14 @@ float motorB_speed;
 float motorC_speed;
 float motorD_speed;
 
-// MotorSpeed.cpp 에서 extern
-int motorA_pin = 8;
-int motorB_pin = 9;
-int motorC_pin = 7;
-int motorD_pin = 12;
 
-int isStopBeaconDetected = 0;
+/* 비콘 디텍터 관련 변수들  */
+// 멈춰 비콘 감지 변수
+boolean isStopBeaconDetected = false;
+// 조종기 명령 제어 변수
+boolean ignoreController = false;
+// 비콘 디텍터 스레드 객체
+rtos::Thread thread_Beacon;
 
 void setup() {
 
@@ -59,30 +61,57 @@ void setup() {
   cv_yaw.rate_ki = 0.0;
   cv_yaw.rate_kd = 0.0;
 
+
   Serial.begin(115200);
   Serial1.begin(9600);
   if (!IMU.begin()) {
     Serial.println("Failed to initialize IMU!");
     while (1);
   }
+
+  if (!BLE.begin()) {
+    Serial.println("starting BLE failed!");
+     while (1);
+  }
+
   calibAccelGyro();
   initDT();
   initYPR();
+
+  // 비콘 인식 스레드 시작
+  thread_Beacon.start(beacon_thread);
 }
 
-
+// 메인 비행제어
 void loop() {
   IMU.readAcceleration(sdata.accel_x, sdata.accel_y, sdata.accel_z);
   IMU.readGyroscope(sdata.gyro_x, sdata.gyro_y, sdata.gyro_z);
-
   calcDT();
-  calcFilteredYPR();
-  calcYPRtoDualPID();
+  calcFilteredYPR(
+    &sdata,
+    &angle,
+    &dt
+  );
+  calcYPRtoDualPID(
+    &cv_roll,
+    &cv_pitch,
+    &cv_yaw,
+    &sdata,
+    &angle,
+    &dt
+  );
   calcMotorSpeed();
-  checkMspPacket();
-  
-  isStopBeaconDetected = BeaconDetector();
-  if(isStopBeaconDetected)  Serial.println("STOP");
+
+  // beacon_thread 에 의해 ignoreController 가 false -> true 로 바뀜
+  if(!ignoreController) {
+    checkMspPacket();
+  }
+
+  // ignoreController 가 true 일때 
+  // 조종기 무시, throttle = 0
+  else  {
+    throttle = 0;
+  }
 
   updateMotorSpeed(
   &motorA_speed,
@@ -90,12 +119,11 @@ void loop() {
   &motorC_speed,
   &motorD_speed
   );
-
   // FlightData 구조체 데이터 초기화
   fdata.dt = dt;
-  fdata.filtered_angle_x = filtered_angle_x;
-  fdata.filtered_angle_y = filtered_angle_y;
-  fdata.filtered_angle_z = filtered_angle_z;
+  fdata.filtered_angle_x = angle.roll;
+  fdata.filtered_angle_y = angle.pitch;
+  fdata.filtered_angle_z = angle.yaw;
   fdata.roll_target_angle = cv_roll.target;
   fdata.pitch_target_angle =cv_pitch.target;
   fdata.yaw_target_angle = cv_yaw.target;
@@ -104,10 +132,32 @@ void loop() {
   fdata.motorB_speed =motorB_speed;
   fdata.motorC_speed = motorC_speed;
   fdata.motorD_speed = motorD_speed;
-
   SendDataToProcessing(&fdata);
+
 }
 
+void beacon_thread()  {
+  // 비콘 감지기
+
+  while(1)  {
+    isStopBeaconDetected = BeaconDetector();
+    if(isStopBeaconDetected)  {
+      while(1)  {
+        ignoreController = true;
+        delay(1);
+      }
+    }
+  }
+
+ /*
+ while(1) {
+  digitalWrite(LED_BUILTIN,HIGH);
+  delay(1000);
+  digitalWrite(LED_BUILTIN,LOW);
+  delay(1000);
+ }
+ */
+}
 
 int calibAccelGyro() {
   float sumAcX = 0, sumAcY = 0, sumAcZ = 0;
@@ -147,70 +197,29 @@ int calcDT() {
 }
 
 
-int calcFilteredYPR() {
-  
-  // 가속도 YPR 값 구하기
-  float accel_angle_x = 0, accel_angle_y = 0, accel_angle_z = 0;
-  float _accel_x, _accel_y, _accel_z;
-  float _accel_xz, _accel_yz;
-  const float RADIANS_TO_DEGREES = 180 / 3.14159;
-
-  _accel_x = sdata.accel_x - sdata.baseAcX;
-  _accel_y = sdata.accel_y - sdata.baseAcY;
-  _accel_z = sdata.accel_z + (1 - sdata.baseAcZ);
-
-  _accel_yz = sqrt(pow(_accel_y, 2) + pow(_accel_z, 2));
-  accel_angle_y = atan(-_accel_x / _accel_yz) * RADIANS_TO_DEGREES;
-
-  _accel_xz = sqrt(pow(_accel_x, 2) + pow(_accel_z, 2));
-  accel_angle_x = atan(_accel_y / _accel_xz) * RADIANS_TO_DEGREES;
-
-  accel_angle_z = 0;
-  
-  // 자이로 센서 보정값 적용
-  sdata.gyro_x = sdata.gyro_x - sdata.baseGyX;
-  sdata.gyro_y = sdata.gyro_y - sdata.baseGyY;
-  sdata.gyro_z =sdata. gyro_z - sdata.baseGyZ;
-
-  // 상보필터
-  const float ALPHA = 0.96;
-  float tmp_angle_x, tmp_angle_y, tmp_angle_z;
-
-  tmp_angle_x = filtered_angle_x + sdata.gyro_x * dt;
-  tmp_angle_y = filtered_angle_y + sdata.gyro_y * dt;
-  tmp_angle_z = filtered_angle_z + sdata.gyro_z * dt;
-
-  filtered_angle_x =
-    ALPHA * tmp_angle_x + (1.0 - ALPHA) * accel_angle_x;
-  filtered_angle_y =
-    ALPHA * tmp_angle_y + (1.0 - ALPHA) * accel_angle_y;
-  filtered_angle_z = tmp_angle_z;
-
-  return 0;
-}
-
-
 int initYPR() {
 
 
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 1000; i++) {
     IMU.readAcceleration(sdata.accel_x, sdata.accel_y, sdata.accel_z);
     IMU.readGyroscope(sdata.gyro_x, sdata.gyro_y, sdata.gyro_z);
 
     calcDT();
-    calcFilteredYPR();
+    calcFilteredYPR(
+    &sdata,
+    &angle,
+    &dt
+  );
 
-    base_roll_target_angle += filtered_angle_y;
-    base_pitch_target_angle += filtered_angle_x;
-    base_yaw_target_angle += filtered_angle_z;
-
-    delay(100);
+    base_roll_target_angle += angle.pitch;
+    base_pitch_target_angle += angle.roll;
+    base_yaw_target_angle += angle.yaw;
 
   }
 
-  base_roll_target_angle /= 10;
-  base_pitch_target_angle /= 10;
-  base_yaw_target_angle /= 10;
+  base_roll_target_angle /= 1000;
+  base_pitch_target_angle /= 1000;
+  base_yaw_target_angle /= 1000;
 
   cv_roll.target = base_roll_target_angle;
   cv_pitch.target = base_pitch_target_angle;
@@ -286,20 +295,23 @@ void printMspPacket() {
 
 }
 
-void calcYPRtoDualPID() {
+/* 비콘 감지 함수 */
+/* 이 부분은 void setup() 의 BLE.begin() 때문에 소스코드 분리 안함
+*/
+int BeaconDetector()  {
+    char MAC[18] = "18:93:d7:2a:8e:a4";
+    
+  // check if a peripheral has been discovered
+    if(!BLE.available())
+    BLE.scan();
+    
+    BLEDevice peripheral = BLE.available();
 
-  cv_roll.angle_in = filtered_angle_x;
-  cv_roll.rate_in = -sdata.gyro_x;
+    if (peripheral) {
+      if (String(peripheral.address()) == MAC) {
+        if (peripheral.rssi() > -61)  return (boolean)1;
+      }
+    }
 
-  dualPID(&cv_roll, &dt);
-
-  cv_pitch.angle_in = filtered_angle_y;
-  cv_pitch.rate_in = -sdata.gyro_y;
-
-  dualPID(&cv_pitch, &dt);
-
-  cv_yaw.angle_in = filtered_angle_z;
-  cv_yaw.rate_in = sdata.gyro_z;
-
-  dualPID(&cv_yaw, &dt);
+    return (boolean)0;
 }
