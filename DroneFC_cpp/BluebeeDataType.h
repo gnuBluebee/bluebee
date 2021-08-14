@@ -49,3 +49,11 @@ typedef struct
   float gyro_z;
   
 }SensorData;
+
+typedef struct
+{
+  float roll;
+  float pitch;
+  float yaw;
+  
+}PostureAngle;
