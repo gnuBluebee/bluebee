@@ -39,11 +39,12 @@ float motorD_speed;
 
 /* 비콘 디텍터 관련 변수들  */
 // 멈춰 비콘 감지 변수
-boolean isStopBeaconDetected = false;
+int isStopBeaconDetected = 0;
 // 조종기 명령 제어 변수
-boolean ignoreController = false;
+int ignoreController = 0;
 // 비콘 디텍터 스레드 객체
 rtos::Thread thread_Beacon;
+rtos::Thread thread_FC;
 
 void setup() {
 
@@ -79,84 +80,84 @@ void setup() {
   initYPR();
 
   // 비콘 인식 스레드 시작
+  thread_FC.start(FlightControl);
   thread_Beacon.start(beacon_thread);
+  
+
 }
 
-// 메인 비행제어
 void loop() {
-  IMU.readAcceleration(sdata.accel_x, sdata.accel_y, sdata.accel_z);
-  IMU.readGyroscope(sdata.gyro_x, sdata.gyro_y, sdata.gyro_z);
-  calcDT();
-  calcFilteredYPR(
-    &sdata,
-    &angle,
-    &dt
-  );
-  calcYPRtoDualPID(
-    &cv_roll,
-    &cv_pitch,
-    &cv_yaw,
-    &sdata,
-    &angle,
-    &dt
-  );
-  calcMotorSpeed();
+}
 
-  // beacon_thread 에 의해 ignoreController 가 false -> true 로 바뀜
-  if(!ignoreController) {
-    checkMspPacket();
+void FlightControl()  {
+  while(1)  {
+    
+    IMU.readAcceleration(sdata.accel_x, sdata.accel_y, sdata.accel_z);
+    IMU.readGyroscope(sdata.gyro_x, sdata.gyro_y, sdata.gyro_z);
+    calcDT();
+    calcFilteredYPR(
+      &sdata,
+      &angle,
+      &dt
+    );
+    calcYPRtoDualPID(
+      &cv_roll,
+      &cv_pitch,
+      &cv_yaw,
+      &sdata,
+      &angle,
+      &dt
+    );
+    calcMotorSpeed();
+
+    // beacon_thread 에 의해 ignoreController 가 false -> true 로 바뀜
+    if(!ignoreController) {
+      checkMspPacket();
+    }
+
+    // ignoreController 가 true 일때 
+    // 조종기 무시, throttle = 0
+    else  {
+      throttle = 0;
+    }
+
+    updateMotorSpeed(
+    &motorA_speed,
+    &motorB_speed,
+    &motorC_speed,
+    &motorD_speed
+    );
+    // FlightData 구조체 데이터 초기화
+    fdata.dt = dt;
+    fdata.filtered_angle_x = angle.roll;
+    fdata.filtered_angle_y = angle.pitch;
+    fdata.filtered_angle_z = angle.yaw;
+    fdata.roll_target_angle = cv_roll.target;
+    fdata.pitch_target_angle =cv_pitch.target;
+    fdata.yaw_target_angle = cv_yaw.target;
+    fdata.throttle = throttle;
+    fdata.motorA_speed = motorA_speed;
+    fdata.motorB_speed =motorB_speed;
+    fdata.motorC_speed = motorC_speed;
+    fdata.motorD_speed = motorD_speed;
+    SendDataToProcessing(&fdata);
+    rtos::ThisThread::sleep_for(1);
+
   }
-
-  // ignoreController 가 true 일때 
-  // 조종기 무시, throttle = 0
-  else  {
-    throttle = 0;
-  }
-
-  updateMotorSpeed(
-  &motorA_speed,
-  &motorB_speed,
-  &motorC_speed,
-  &motorD_speed
-  );
-  // FlightData 구조체 데이터 초기화
-  fdata.dt = dt;
-  fdata.filtered_angle_x = angle.roll;
-  fdata.filtered_angle_y = angle.pitch;
-  fdata.filtered_angle_z = angle.yaw;
-  fdata.roll_target_angle = cv_roll.target;
-  fdata.pitch_target_angle =cv_pitch.target;
-  fdata.yaw_target_angle = cv_yaw.target;
-  fdata.throttle = throttle;
-  fdata.motorA_speed = motorA_speed;
-  fdata.motorB_speed =motorB_speed;
-  fdata.motorC_speed = motorC_speed;
-  fdata.motorD_speed = motorD_speed;
-  SendDataToProcessing(&fdata);
-
 }
 
 void beacon_thread()  {
   // 비콘 감지기
-
   while(1)  {
+
     isStopBeaconDetected = BeaconDetector();
     if(isStopBeaconDetected)  {
       while(1)  {
         ignoreController = true;
-        delay(1);
+        Serial.println("STOP");
       }
     }
   }
-
- /*
- while(1) {
-  digitalWrite(LED_BUILTIN,HIGH);
-  delay(1000);
-  digitalWrite(LED_BUILTIN,LOW);
-  delay(1000);
- }
- */
 }
 
 int calibAccelGyro() {
@@ -299,19 +300,18 @@ void printMspPacket() {
 /* 이 부분은 void setup() 의 BLE.begin() 때문에 소스코드 분리 안함
 */
 int BeaconDetector()  {
+
     char MAC[18] = "18:93:d7:2a:8e:a4";
     
   // check if a peripheral has been discovered
-    if(!BLE.available())
-    BLE.scan();
-    
+    if(!BLE.available()) { 
+      BLE.scanForAddress(MAC);
+    }
+
     BLEDevice peripheral = BLE.available();
 
     if (peripheral) {
-      if (String(peripheral.address()) == MAC) {
-        if (peripheral.rssi() > -61)  return (boolean)1;
-      }
+      if (peripheral.rssi() > -61)  return 1;
     }
-
-    return (boolean)0;
+    return 0;
 }

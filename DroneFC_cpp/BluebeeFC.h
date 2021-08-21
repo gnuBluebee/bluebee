@@ -15,6 +15,7 @@ int calibAccelGyro();
 int initDT();
 int calcDT();
 int initYPR();
+
 void beacon_thread();
 void FlightControl();
 
