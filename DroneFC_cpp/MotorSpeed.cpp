@@ -23,8 +23,14 @@ void updateMotorSpeed(
   float *motorC_speed,
   float *motorD_speed
 ){
-  analogWrite(motorA_pin, *motorA_speed);
-  analogWrite(motorB_pin, *motorB_speed);
-  analogWrite(motorC_pin, *motorC_speed);
-  analogWrite(motorD_pin, *motorD_speed);
+  byte motorA, motorB, motorC,motorD;
+  motorA = (byte)*motorA_speed;
+  motorB = (byte)*motorB_speed;
+  motorC = (byte)*motorC_speed;
+  motorD = (byte)*motorD_speed;
+
+  analogWrite(motorA_pin, motorA);
+  analogWrite(motorB_pin, motorB);
+  analogWrite(motorC_pin, motorC);
+  analogWrite(motorD_pin, motorD);
 }

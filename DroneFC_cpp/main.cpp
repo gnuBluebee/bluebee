@@ -46,17 +46,16 @@ int ignoreController = 0;
 rtos::Thread thread;
 
 void setup() {
-
   // 제어기 게인값 설정
-  cv_roll.stabilize_kp = 1;
+  cv_roll.stabilize_kp = 0.9;
   cv_roll.rate_kp = 0.8;
   cv_roll.rate_ki = 0.0;
   cv_roll.rate_kd = 0.0;
-  cv_pitch.stabilize_kp = 1;
+  cv_pitch.stabilize_kp = 0.9;
   cv_pitch.rate_kp = 0.8;
   cv_pitch.rate_ki = 0.0;
   cv_pitch.rate_kd = 0.0;
-  cv_yaw.stabilize_kp = 0;
+  cv_yaw.stabilize_kp = 0.9;
   cv_yaw.rate_kp = 0.8;
   cv_yaw.rate_ki = 0.0;
   cv_yaw.rate_kd = 0.0;
@@ -78,6 +77,7 @@ void setup() {
   initDT();
   initYPR();
 
+  // 비콘제어스레드 시작 및 우선순위 설정
   thread.start(FlightControl);
   thread.set_priority(osPriorityRealtime);
 }
@@ -85,8 +85,6 @@ void setup() {
 void loop() {}
 
 void FlightControl()  {
-  // 비행제어기 작동 알림 LED
-  digitalWrite(LED_GREEN, HIGH);
 
   while(1)  {
     IMU.readAcceleration(sdata.accel_x, sdata.accel_y, sdata.accel_z);
@@ -221,7 +219,6 @@ void calcMotorSpeed() {
     throttle + cv_yaw.output + cv_roll.output + cv_pitch.output;
   motorD_speed = (throttle == 0) ? 0:
     throttle - cv_yaw.output - cv_roll.output + cv_pitch.output;
-  //float throttle = 0;
 
   if (motorA_speed < 0) motorA_speed = 0;
   if (motorA_speed > 255) motorA_speed = 255;
@@ -252,7 +249,7 @@ void checkMspPacket() {
 
           cv_roll.target = base_roll_target_angle;
           cv_pitch.target = base_pitch_target_angle;
-          cv_yaw.target = base_yaw_target_angle;
+          //cv_yaw.target = base_yaw_target_angle;
 
           cv_roll.target -= (float)(mspPacket[5] - 125) * MAX_CONTROL_ANGLE/125;
           cv_pitch.target += (float)(mspPacket[6] - 125) * MAX_CONTROL_ANGLE/125;
