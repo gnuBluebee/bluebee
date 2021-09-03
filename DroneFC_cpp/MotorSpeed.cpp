@@ -5,9 +5,9 @@
 #endif
 
 // 아두이노 모터제어용 핀번호 선언
-static int motorA_pin = 8;
+static int motorA_pin = 7;
 static int motorB_pin = 9;
-static int motorC_pin = 7;
+static int motorC_pin = 8;
 static int motorD_pin = 12;
 
 void initMotorSpeed() {
