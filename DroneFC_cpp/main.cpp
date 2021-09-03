@@ -2,7 +2,7 @@
 
 #define THROTTLE_MAX 255
 #define THROTTLE_MIN 0
-#define MAX_CONTROL_ANGLE 5
+#define MAX_CONTROL_ANGLE 10
 
 // 수신기 데이터값
 uint8_t mspPacket[11];
@@ -42,9 +42,8 @@ float motorD_speed;
 int isStopBeaconDetected = 0;
 // 조종기 명령 제어 변수
 int ignoreController = 0;
-// 비콘 디텍터 스레드 객체
-rtos::Thread thread_Beacon;
-rtos::Thread thread_FC;
+
+rtos::Thread thread;
 
 void setup() {
 
@@ -58,7 +57,7 @@ void setup() {
   cv_pitch.rate_ki = 0.0;
   cv_pitch.rate_kd = 0.0;
   cv_yaw.stabilize_kp = 0;
-  cv_yaw.rate_kp = 0.7;
+  cv_yaw.rate_kp = 0.8;
   cv_yaw.rate_ki = 0.0;
   cv_yaw.rate_kd = 0.0;
 
@@ -79,19 +78,17 @@ void setup() {
   initDT();
   initYPR();
 
-  // 비콘 인식 스레드 시작
-  thread_FC.start(FlightControl);
-  thread_Beacon.start(beacon_thread);
-  
-
+  thread.start(FlightControl);
+  thread.set_priority(osPriorityRealtime);
 }
 
-void loop() {
-}
+void loop() {}
 
 void FlightControl()  {
+  // 비행제어기 작동 알림 LED
+  digitalWrite(LED_GREEN, HIGH);
+
   while(1)  {
-    
     IMU.readAcceleration(sdata.accel_x, sdata.accel_y, sdata.accel_z);
     IMU.readGyroscope(sdata.gyro_x, sdata.gyro_y, sdata.gyro_z);
     calcDT();
@@ -141,24 +138,9 @@ void FlightControl()  {
     fdata.motorC_speed = motorC_speed;
     fdata.motorD_speed = motorD_speed;
     SendDataToProcessing(&fdata);
-    rtos::ThisThread::sleep_for(1);
-
   }
 }
 
-void beacon_thread()  {
-  // 비콘 감지기
-  while(1)  {
-
-    isStopBeaconDetected = BeaconDetector();
-    if(isStopBeaconDetected)  {
-      while(1)  {
-        ignoreController = true;
-        Serial.println("STOP");
-      }
-    }
-  }
-}
 
 int calibAccelGyro() {
   float sumAcX = 0, sumAcY = 0, sumAcZ = 0;
