@@ -21,7 +21,7 @@ void calcYPRtoDualPID(
   dualPID(cv_pitch, dt);
 
   cv_yaw->angle_in = angle->yaw;
-  cv_yaw->rate_in = sdata->gyro_z;
+  cv_yaw->rate_in = (sdata->gyro_z);
 
   dualPID(cv_yaw, dt);
 }

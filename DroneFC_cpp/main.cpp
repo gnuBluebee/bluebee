@@ -49,11 +49,11 @@ void setup() {
 
   // 제어기 게인값 설정
   cv_roll.stabilize_kp = 1;
-  cv_roll.rate_kp = 0.7;
+  cv_roll.rate_kp = 0.8;
   cv_roll.rate_ki = 0.0;
   cv_roll.rate_kd = 0.0;
   cv_pitch.stabilize_kp = 1;
-  cv_pitch.rate_kp = 0.7;
+  cv_pitch.rate_kp = 0.8;
   cv_pitch.rate_ki = 0.0;
   cv_pitch.rate_kd = 0.0;
   cv_yaw.stabilize_kp = 0;
