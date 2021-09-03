@@ -25,6 +25,7 @@ typedef struct
   float stabilize_ki;
   float rate_kp;
   float rate_ki;
+  float rate_kd;
   float stabilize_iterm;
   float rate_iterm;
   float output;
@@ -48,3 +49,11 @@ typedef struct
   float gyro_z;
   
 }SensorData;
+
+typedef struct
+{
+  float roll;
+  float pitch;
+  float yaw;
+  
+}PostureAngle;
